@@ -1,24 +1,25 @@
-import { connect, Schema, model } from "mongoose";
-import express, { json } from "express";
-import cors from "cors";
-import { urlencoded } from "body-parser";
-import { body, validationResult } from "express-validator";
-import { hash as _hash, compare } from "bcrypt";
-import { sign } from "jsonwebtoken";
-import fetchUser from "./middleware/fetchuser";
+require("dotenv").config();
+const mongoose = require("mongoose");
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const { body, validationResult } = require("express-validator");
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const fetchUser = require("./middleware/fetchuser");
 const saltRounds = 10;
 const app = express();
 
 const url = process.env.DATABASE_URL;
 
-const PORT = process.env.PORT || 3000;
-connect(url);
+const PORT = process.env.PORT || 5000;
+mongoose.connect(url);
 
-app.use(urlencoded({ extended: true }));
-app.use(json());
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(express.json());
 app.use(cors());
 
-const userSchema = new Schema({
+const userSchema = new mongoose.Schema({
     name: {
         type: String,
         required: true
@@ -38,9 +39,9 @@ const userSchema = new Schema({
     }
 });
 
-const noteSchema = new Schema({
+const noteSchema = new mongoose.Schema({
     user: {
-        type: Schema.Types.ObjectId,
+        type: mongoose.Schema.Types.ObjectId,
         ref: "User"
     },
     title: {
@@ -57,8 +58,8 @@ const noteSchema = new Schema({
     }
 });
 
-const User = model("User", userSchema);
-const Note = model("Note", noteSchema);
+const User = mongoose.model("User", userSchema);
+const Note = mongoose.model("Note", noteSchema);
 User.createIndexes();
 
 app.get("/", function (req, res) {
@@ -88,7 +89,7 @@ app.post("/api/auth/createuser", [
 
     if(!checkForDuplication){
         try {
-            _hash(req.body.password, saltRounds, function (err, hash) {
+            bcrypt.hash(req.body.password, saltRounds, function (err, hash) {
                 const user = new User({
                     name: req.body.name,
                     email: req.body.email,
@@ -100,7 +101,7 @@ app.post("/api/auth/createuser", [
                             _id: user._id
                         }
                     }
-                    const authToken = sign(data, process.env.JWT_SECRET);
+                    const authToken = jwt.sign(data, process.env.JWT_SECRET);
                     success = true;
                     res.json({ success, authToken });
                 }).catch(err => {
@@ -130,14 +131,14 @@ app.post("/api/auth/login", [
         if (!foundUser) {
             return res.status(404).json({ success, error: "Please enter correct login credentials." });
         }
-        compare(password, foundUser.password, function (err, result) {
+        bcrypt.compare(password, foundUser.password, function (err, result) {
             if (result === true) {
                 const data = {
                     user: {
                         _id: foundUser._id
                     }
                 }
-                const authToken = sign(data, process.env.JWT_SECRET);
+                const authToken = jwt.sign(data, process.env.JWT_SECRET);
                 success = true;
                 res.json({ success, authToken });
             } else {
@@ -237,5 +238,5 @@ app.delete("/api/notes/deletenote/:id", fetchUser, async (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log("Listening on port 3000");
+    console.log("Listening on port 5000");
 });
